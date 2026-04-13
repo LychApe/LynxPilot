@@ -1,0 +1,25 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+
+# Build artifacts
+*.out
+*.test
+coverage.out
+
+# Go workspace/module caches
+go.work.sum
+
+# IDE / OS files
+.DS_Store
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+config/lynxpilot.db
