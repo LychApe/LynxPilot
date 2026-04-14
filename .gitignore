@@ -23,3 +23,4 @@ go.work.sum
 *.db-shm
 *.db-wal
 config/lynxpilot.db
+config/config.yaml

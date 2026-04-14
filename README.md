@@ -14,3 +14,17 @@ go run ./cmd/server
 ```bash
 curl http://localhost:8080/healthz
 ```
+
+初始化创建用户（终端执行）：
+
+```bash
+go run ./cmd/server init-user
+```
+
+用户登录：
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"your-password"}'
+```
