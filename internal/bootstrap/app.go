@@ -6,10 +6,16 @@ import (
 
 func Run() {
 	// 加载配置文件
-	Config, err := LoadConfig("")
+	config, err := LoadConfig("")
 	if err != nil {
 		os.Exit(1)
 	}
+
+	// 初始化数据库
+	if _, err := LoadDatabase(config); err != nil {
+		os.Exit(1)
+	}
+
 	// 加载路由
-	LoadRouter(Config)
+	LoadRouter(config)
 }

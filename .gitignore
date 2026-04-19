@@ -5,7 +5,6 @@ bin/
 *.dll
 *.so
 *.dylib
-server
 
 # Build artifacts
 *.out
@@ -17,6 +16,9 @@ go.work.sum
 
 # IDE / OS files
 .DS_Store
+
+# Frontend
+web/node_modules/
 
 # SQLite database files
 *.db
