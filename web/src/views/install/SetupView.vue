@@ -28,7 +28,7 @@ watch(
 )
 
 const confirmPasswordRules = [
-  { required: true, message: '请再次输入密码' },
+  { required: true, whitespace: true, message: '请再次输入密码' },
   {
     validator: async (_rule: any, value: string) => {
       if (value && value !== model.password) {
@@ -45,11 +45,9 @@ async function handleFinish() {
     await register(data)
     message.success('安装完成，正在跳转...')
     router.push('/login')
-  }
-  catch {
+  } catch {
     // 错误已由 req 拦截器统一处理
-  }
-  finally {
+  } finally {
     loading.value = false
   }
 }
@@ -57,10 +55,8 @@ async function handleFinish() {
 
 <template>
   <div class="setup-container">
-    <a-card class="setup-card" title="LynxPilot 初始设置" :bordered="false">
-      <p class="setup-desc">
-        创建管理员账号以开始使用面板
-      </p>
+    <a-card class="setup-card" title="LynxPilot 初始设置" variant="borderless">
+      <p class="setup-desc">创建管理员账号以开始使用面板</p>
       <a-form
         ref="formRef"
         name="setup"
@@ -69,10 +65,7 @@ async function handleFinish() {
         style="max-width: 400px"
         @finish="handleFinish"
       >
-        <a-form-item
-          name="username"
-          :rules="[{ required: true, message: '请输入用户名' }]"
-        >
+        <a-form-item name="username" :rules="[{ required: true, message: '请输入用户名' }]">
           <a-input v-model:value="model.username" placeholder="用户名" size="large">
             <template #prefix>
               <UserOutlined />
@@ -96,8 +89,9 @@ async function handleFinish() {
 
         <a-form-item
           name="password"
-          :rules="[{ required: true, message: '请输入密码' }]"
+          :rules="[{ required: true, whitespace: true, message: '请输入密码' }]"
           has-feedback
+          validate-trigger="blur"
         >
           <a-input-password v-model:value="model.password" placeholder="密码" size="large">
             <template #prefix>
@@ -110,8 +104,13 @@ async function handleFinish() {
           name="confirmPassword"
           :rules="confirmPasswordRules"
           has-feedback
+          validate-trigger="blur"
         >
-          <a-input-password v-model:value="model.confirmPassword" placeholder="确认密码" size="large">
+          <a-input-password
+            v-model:value="model.confirmPassword"
+            placeholder="确认密码"
+            size="large"
+          >
             <template #prefix>
               <LockOutlined />
             </template>

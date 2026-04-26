@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	jwtUtil "github.com/LychApe/LynxPilot/internal/utils/jwt"
+	"github.com/LychApe/LynxPilot/internal/utils/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,7 +15,7 @@ func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth := c.GetHeader("Authorization")
 		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供认证令牌"})
+			response.Error(c, http.StatusUnauthorized, 40101, "未提供认证令牌")
 			c.Abort()
 			return
 		}
@@ -24,7 +25,7 @@ func Auth() gin.HandlerFunc {
 
 		userID, err := jwtUtil.ParseToken(tokenString, tokenSalt)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "认证令牌无效或已过期"})
+			response.Error(c, http.StatusUnauthorized, 40102, "认证令牌无效或已过期")
 			c.Abort()
 			return
 		}

@@ -6,6 +6,7 @@ import (
 
 	processService "github.com/LychApe/LynxPilot/internal/service/process"
 	"github.com/LychApe/LynxPilot/internal/utils/logger"
+	"github.com/LychApe/LynxPilot/internal/utils/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,10 +25,9 @@ func triggerSelfShutdown() {
 }
 
 func RebootHandler(c *gin.Context) {
-	c.JSON(200, gin.H{"message": "reboot signal accepted"})
+	response.OK(c, gin.H{"message": "reboot signal accepted"})
 
 	go func() {
-		// 给响应一点时间写回客户端，再触发进程退出
 		time.Sleep(200 * time.Millisecond)
 
 		if err := processService.StartNewProcess(); err != nil {
@@ -40,7 +40,7 @@ func RebootHandler(c *gin.Context) {
 }
 
 func ShutdownHandler(c *gin.Context) {
-	c.JSON(200, gin.H{"message": "shutdown signal accepted"})
+	response.OK(c, gin.H{"message": "shutdown signal accepted"})
 
 	go func() {
 		triggerSelfShutdown()

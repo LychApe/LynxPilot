@@ -8,6 +8,9 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    chunkSizeWarningLimit: 600,
+  },
   plugins: [
     vue(),
     vueDevTools(),

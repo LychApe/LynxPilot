@@ -7,7 +7,7 @@ import (
 
 	userModel "github.com/LychApe/LynxPilot/internal/model/user"
 	"github.com/LychApe/LynxPilot/internal/utils/logger"
-	"gorm.io/driver/sqlite"
+	sqlite "github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 

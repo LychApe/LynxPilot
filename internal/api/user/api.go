@@ -2,9 +2,9 @@ package user
 
 import (
 	"net/http"
-	"time"
 
 	userService "github.com/LychApe/LynxPilot/internal/service/user"
+	"github.com/LychApe/LynxPilot/internal/utils/response"
 	jwtUtil "github.com/LychApe/LynxPilot/internal/utils/jwt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -18,7 +18,7 @@ func RegisterHandler(c *gin.Context) {
 		Email    string `json:"email"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名和密码不能为空"})
+		response.Error(c, http.StatusBadRequest, 40001, "用户名和密码不能为空")
 		return
 	}
 
@@ -26,11 +26,11 @@ func RegisterHandler(c *gin.Context) {
 
 	user, err := userService.CreateUser(db, req.Username, req.Password, req.Email)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		response.Error(c, http.StatusConflict, 40901, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	response.Created(c, gin.H{
 		"id":       user.ID,
 		"username": user.Username,
 		"email":    user.Email,
@@ -44,7 +44,7 @@ func LoginHandler(c *gin.Context) {
 		Password string `json:"password" binding:"required"` // 前端传来的 MD5 值
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名和密码不能为空"})
+		response.Error(c, http.StatusBadRequest, 40001, "用户名和密码不能为空")
 		return
 	}
 
@@ -54,21 +54,18 @@ func LoginHandler(c *gin.Context) {
 	user, err := userService.Login(db, req.Username, req.Password)
 	if err != nil {
 		// 用户不存在和密码错误返回相同提示，防止枚举攻击
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
+		response.Error(c, http.StatusUnauthorized, 40103, "用户名或密码错误")
 		return
 	}
 
 	tokenString, expiresAt, err := jwtUtil.GenerateToken(user.ID, tokenSalt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成令牌失败"})
+		response.Error(c, http.StatusInternalServerError, 50001, "生成令牌失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, struct {
-		Token     string    `json:"token"`
-		ExpiresAt time.Time `json:"expires_at"`
-	}{
-		Token:     tokenString,
-		ExpiresAt: expiresAt,
+	response.OK(c, gin.H{
+		"token":      tokenString,
+		"expires_at": expiresAt,
 	})
 }
