@@ -21,11 +21,11 @@ req.interceptors.response.use(
   (res) => res.data,
   (err) => {
     const status = err.response?.status
-    const msg = err.response?.data?.error || '请求失败'
+    const msg = err.response?.data?.message || '请求失败'
 
     if (status === 401) {
       localStorage.removeItem('token')
-      router.push('/install/setup')
+      router.push('/login')
     }
 
     message.error(msg)

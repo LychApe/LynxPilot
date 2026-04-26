@@ -11,6 +11,11 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 600,
   },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8080',
+    },
+  },
   plugins: [
     vue(),
     vueDevTools(),

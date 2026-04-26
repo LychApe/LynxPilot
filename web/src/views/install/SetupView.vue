@@ -3,12 +3,25 @@ import type { FormInstance } from 'antdv-next'
 import { LockOutlined, MailOutlined, UserOutlined } from '@antdv-next/icons'
 import { message } from 'antdv-next'
 import { reactive, ref, shallowRef, watch } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { register } from '@/api/user'
+import { getStatus } from '@/api/server'
 
 const router = useRouter()
 const formRef = shallowRef<FormInstance>()
 const loading = ref(false)
+
+onMounted(async () => {
+  try {
+    const res: any = await getStatus()
+    if (res.data.installed) {
+      router.replace('/login')
+    }
+  } catch {
+    // 接口失败则允许继续访问安装页
+  }
+})
 
 const model = reactive({
   username: '',

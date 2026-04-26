@@ -13,7 +13,7 @@ func Register(router *gin.Engine) {
 		serverPublicGroup.GET("/status", apiServer.StatusHandler)
 	}
 
-	// 私有接口（需认证）
+	// 私有接口
 	serverGroup := router.Group("/api/v1/private/server")
 	serverGroup.Use(middleware.Auth())
 	{
