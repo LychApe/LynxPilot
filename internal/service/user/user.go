@@ -47,6 +47,13 @@ func CreateUser(db *gorm.DB, username, password, email string) (*userModel.User,
 	return user, nil
 }
 
+// IsInstalled 检查是否已完成安装向导（数据库中是否存在用户）
+func IsInstalled(db *gorm.DB) bool {
+	var count int64
+	db.Model(&userModel.User{}).Count(&count)
+	return count > 0
+}
+
 // UpdateUser 编辑用户信息，仅更新非空字段
 func UpdateUser(db *gorm.DB, userID uint, username, password, email string) (*userModel.User, error) {
 	var user userModel.User

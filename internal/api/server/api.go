@@ -2,12 +2,17 @@ package server
 
 import (
 	"os"
+	"runtime"
 	"time"
 
 	processService "github.com/LychApe/LynxPilot/internal/service/process"
+	userService "github.com/LychApe/LynxPilot/internal/service/user"
 	"github.com/LychApe/LynxPilot/internal/utils/logger"
 	"github.com/LychApe/LynxPilot/internal/utils/response"
+	"github.com/LychApe/LynxPilot/internal/utils/appvar"
+	"github.com/LychApe/LynxPilot/internal/utils/format"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func triggerSelfShutdown() {
@@ -24,6 +29,7 @@ func triggerSelfShutdown() {
 	}
 }
 
+// 重启接口
 func RebootHandler(c *gin.Context) {
 	response.OK(c, gin.H{"message": "reboot signal accepted"})
 
@@ -39,10 +45,27 @@ func RebootHandler(c *gin.Context) {
 	}()
 }
 
+// 关闭接口
 func ShutdownHandler(c *gin.Context) {
 	response.OK(c, gin.H{"message": "shutdown signal accepted"})
 
 	go func() {
 		triggerSelfShutdown()
 	}()
+}
+
+// 状态接口
+func StatusHandler(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
+	uptime := time.Since(appvar.StartTime).Truncate(time.Second)
+
+	response.OK(c, gin.H{
+		"installed": userService.IsInstalled(db),
+		"memory":    format.Memory(memStats.Alloc),
+		"uptime":    uptime.String(),
+	})
 }
