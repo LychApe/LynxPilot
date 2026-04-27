@@ -5,7 +5,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/login',
+      redirect: '/dashboard',
     },
     {
       path: '/login',
@@ -16,6 +16,27 @@ const router = createRouter({
       path: '/install/setup',
       name: 'setup',
       component: () => import('@/views/install/SetupView.vue'),
+    },
+    {
+      path: '/',
+      component: () => import('@/layouts/AdminLayout.vue'),
+      children: [
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/views/dashboard/DashboardView.vue'),
+        },
+        {
+          path: 'server',
+          name: 'server',
+          component: () => import('@/views/server/ServerView.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@/views/settings/SettingsView.vue'),
+        },
+      ],
     },
   ],
 })

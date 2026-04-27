@@ -20,7 +20,7 @@ async function handleFinish() {
     localStorage.setItem('token', res.data.token)
     localStorage.setItem('expires_at', res.data.expires_at)
     message.success('登录成功')
-    router.push('/')
+    router.push('/dashboard')
   } catch {
     // 错误已由 req 拦截器统一处理
   } finally {

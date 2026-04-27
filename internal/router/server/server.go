@@ -17,6 +17,7 @@ func Register(router *gin.Engine) {
 	serverGroup := router.Group("/api/v1/private/server")
 	serverGroup.Use(middleware.Auth())
 	{
+		serverGroup.GET("/status", apiServer.PrivateStatusHandler)
 		serverGroup.GET("/reboot", apiServer.RebootHandler)
 		serverGroup.GET("/shutdown", apiServer.ShutdownHandler)
 	}
