@@ -14,7 +14,9 @@ import (
 
 	"github.com/google/uuid"
 
+	routeDocker "github.com/LychApe/LynxPilot/internal/router/docker"
 	routeServer "github.com/LychApe/LynxPilot/internal/router/server"
+	routeSetting "github.com/LychApe/LynxPilot/internal/router/setting"
 	routeUser "github.com/LychApe/LynxPilot/internal/router/user"
 	"github.com/LychApe/LynxPilot/internal/utils/logger"
 	"github.com/LychApe/LynxPilot/web"
@@ -37,7 +39,9 @@ func LoadRouter(config *Config) *gin.Engine {
 	})
 
 	// 注册路由
+	routeDocker.Register(router)
 	routeServer.Register(router)
+	routeSetting.Register(router)
 	routeUser.Register(router)
 
 	// 前端静态文件服务

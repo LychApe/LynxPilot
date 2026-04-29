@@ -1,10 +1,37 @@
 <script setup lang="ts">
-import { LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@antdv-next/icons'
-import { ref } from 'vue'
+import {
+  LogoutOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  PoweroffOutlined,
+  ReloadOutlined,
+} from '@antdv-next/icons'
+import { h, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import req from '@/utils/req'
+import { message } from 'antdv-next'
 
 const router = useRouter()
 const collapsed = ref(false)
+
+const powerLoading = ref(false)
+
+async function handlePowerMenu({ key }: { key: string }) {
+  powerLoading.value = true
+  try {
+    if (key === 'reboot') {
+      await req.get('/private/server/reboot')
+      message.success('重启面板指令已发送')
+    } else {
+      await req.get('/private/server/shutdown')
+      message.success('关闭面板指令已发送')
+    }
+  } catch {
+    message.error(key === 'reboot' ? '重启失败' : '关机失败')
+  } finally {
+    powerLoading.value = false
+  }
+}
 
 function handleLogout() {
   localStorage.removeItem('token')
@@ -38,16 +65,41 @@ function handleLogout() {
           <MenuUnfoldOutlined v-if="collapsed" />
           <MenuFoldOutlined v-else />
         </span>
-        <a-button
-          type="text"
-          class="logout-btn"
-          @click="handleLogout"
-        >
-          <template #icon>
-            <LogoutOutlined />
-          </template>
-          退出
-        </a-button>
+
+        <div class="header-actions">
+          <a-dropdown
+            :menu="{
+              items: [
+                { key: 'reboot', icon: () => h(ReloadOutlined), label: '重启面板' },
+                { key: 'shutdown', icon: () => h(PoweroffOutlined), label: '关闭面板', danger: true },
+              ],
+              onClick: handlePowerMenu,
+            }"
+            :trigger="['click']"
+          >
+            <a-button
+              type="text"
+              class="power-btn"
+              :loading="powerLoading"
+              @click.prevent
+            >
+              <template #icon>
+                <PoweroffOutlined />
+              </template>
+            </a-button>
+          </a-dropdown>
+
+          <a-button
+            type="text"
+            class="logout-btn"
+            @click="handleLogout"
+          >
+            <template #icon>
+              <LogoutOutlined />
+            </template>
+            退出
+          </a-button>
+        </div>
       </a-layout-header>
 
       <a-layout-content class="admin-content">
@@ -111,6 +163,20 @@ function handleLogout() {
 }
 
 .trigger:hover {
+  color: #1677ff;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.power-btn {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.power-btn:hover {
   color: #1677ff;
 }
 

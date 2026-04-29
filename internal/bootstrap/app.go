@@ -2,6 +2,8 @@ package bootstrap
 
 import (
 	"os"
+
+	dockerService "github.com/LychApe/LynxPilot/internal/service/docker"
 )
 
 func Run() {
@@ -15,6 +17,8 @@ func Run() {
 	if _, err := LoadDatabase(config); err != nil {
 		os.Exit(1)
 	}
+
+	dockerService.SetDB(DB)
 
 	// 加载路由
 	LoadRouter(config)

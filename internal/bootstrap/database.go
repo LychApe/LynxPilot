@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	settingModel "github.com/LychApe/LynxPilot/internal/model/setting"
 	userModel "github.com/LychApe/LynxPilot/internal/model/user"
 	"github.com/LychApe/LynxPilot/internal/utils/logger"
 	sqlite "github.com/glebarez/sqlite"
@@ -29,7 +30,7 @@ func LoadDatabase(config *Config) (*gorm.DB, error) {
 		return nil, logger.Errorf("初始化 sqlite 数据库失败: %v", err)
 	}
 
-	if err := db.AutoMigrate(&userModel.User{}); err != nil {
+	if err := db.AutoMigrate(&userModel.User{}, &settingModel.Setting{}); err != nil {
 		return nil, logger.Errorf("自动迁移失败: %v", err)
 	}
 
