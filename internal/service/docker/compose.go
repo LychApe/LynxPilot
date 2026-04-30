@@ -363,6 +363,39 @@ func ComposePs(projectName string) ([]ContainerInfo, error) {
 	return result, nil
 }
 
+func GetComposeConfig(projectName string) (string, error) {
+	cli, err := getClient()
+	if err != nil {
+		return "", err
+	}
+	defer cli.Close()
+
+	args := filters.NewArgs()
+	args.Add("label", "com.docker.compose.project="+projectName)
+
+	containers, err := cli.ContainerList(context.Background(), container.ListOptions{All: true, Filters: args})
+	if err != nil {
+		return "", fmt.Errorf("获取项目容器失败: %w", err)
+	}
+
+	if len(containers) == 0 {
+		return "", fmt.Errorf("未找到项目 %s 的容器", projectName)
+	}
+
+	configFile := containers[0].Labels["com.docker.compose.project.config_files"]
+	if configFile == "" {
+		return "", fmt.Errorf("无法获取项目 %s 的配置文件路径", projectName)
+	}
+
+	paths := strings.Split(configFile, ",")
+	data, err := os.ReadFile(paths[0])
+	if err != nil {
+		return "", fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	return string(data), nil
+}
+
 func readLogOutput(rc io.ReadCloser) (string, error) {
 	body, err := io.ReadAll(rc)
 	if err != nil {

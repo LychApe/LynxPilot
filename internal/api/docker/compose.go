@@ -117,3 +117,13 @@ func ComposeAvailableHandler(c *gin.Context) {
 	available := dockerService.CheckComposeAvailable()
 	response.OK(c, gin.H{"available": available})
 }
+
+func GetComposeConfigHandler(c *gin.Context) {
+	projectName := c.Param("name")
+	content, err := dockerService.GetComposeConfig(projectName)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, 500, "获取配置失败: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{"content": content})
+}

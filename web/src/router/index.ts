@@ -32,6 +32,11 @@ const router = createRouter({
           component: () => import('@/views/docker/DockerView.vue'),
         },
         {
+          path: 'files',
+          name: 'files',
+          component: () => import('@/views/file/FileManageView.vue'),
+        },
+        {
           path: 'settings',
           name: 'settings',
           component: () => import('@/views/settings/SettingsView.vue'),

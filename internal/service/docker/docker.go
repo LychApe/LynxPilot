@@ -21,6 +21,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/registry"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"gorm.io/gorm"
 )
@@ -254,17 +256,70 @@ type Port struct {
 }
 
 type ContainerStats struct {
-	CPUPercent     float64 `json:"cpu_percent"`
-	MemoryUsage    uint64  `json:"memory_usage"`
-	MemoryLimit    uint64  `json:"memory_limit"`
-	MemoryPercent  float64 `json:"memory_percent"`
-	NetworkRx      uint64  `json:"network_rx"`
-	NetworkTx      uint64  `json:"network_tx"`
-	BlockRead      uint64  `json:"block_read"`
-	BlockWrite     uint64  `json:"block_write"`
-	Pids           int     `json:"pids"`
-	MemoryUsageText string `json:"memory_usage_text"`
-	MemoryLimitText string `json:"memory_limit_text"`
+	CPUPercent      float64 `json:"cpu_percent"`
+	MemoryUsage     uint64  `json:"memory_usage"`
+	MemoryLimit     uint64  `json:"memory_limit"`
+	MemoryPercent   float64 `json:"memory_percent"`
+	NetworkRx       uint64  `json:"network_rx"`
+	NetworkTx       uint64  `json:"network_tx"`
+	BlockRead       uint64  `json:"block_read"`
+	BlockWrite      uint64  `json:"block_write"`
+	Pids            int     `json:"pids"`
+	MemoryUsageText string  `json:"memory_usage_text"`
+	MemoryLimitText string  `json:"memory_limit_text"`
+}
+
+type ImageInfo struct {
+	ID          string            `json:"id"`
+	ShortID     string            `json:"short_id"`
+	RepoTags    []string          `json:"repo_tags"`
+	RepoDigests []string          `json:"repo_digests"`
+	Size        int64             `json:"size"`
+	SizeText    string            `json:"size_text"`
+	Created     int64             `json:"created"`
+	Containers  int64             `json:"containers"`
+	Labels      map[string]string `json:"labels"`
+}
+
+type PullImageRequest struct {
+	Image string `json:"image"`
+}
+
+type TagImageRequest struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+}
+
+type PruneResult struct {
+	Deleted        int    `json:"deleted"`
+	SpaceReclaimed uint64 `json:"space_reclaimed"`
+	SpaceText      string `json:"space_text"`
+}
+
+type RegistryConfig struct {
+	Name          string `json:"name"`
+	ServerAddress string `json:"server_address"`
+	Username      string `json:"username"`
+	Password      string `json:"password,omitempty"`
+}
+
+type VolumeInfo struct {
+	Name       string            `json:"name"`
+	Driver     string            `json:"driver"`
+	Mountpoint string            `json:"mountpoint"`
+	CreatedAt  string            `json:"created_at"`
+	Scope      string            `json:"scope"`
+	Labels     map[string]string `json:"labels"`
+	Options    map[string]string `json:"options"`
+	Size       int64             `json:"size"`
+	SizeText   string            `json:"size_text"`
+}
+
+type CreateVolumeRequest struct {
+	Name    string            `json:"name"`
+	Driver  string            `json:"driver"`
+	Labels  map[string]string `json:"labels"`
+	Options map[string]string `json:"options"`
 }
 
 type ContainerDetail struct {
@@ -504,7 +559,7 @@ func GetContainerLogs(containerID string, tail string) (string, error) {
 	return string(body), nil
 }
 
-func ListImages() ([]image.Summary, error) {
+func ListImages() ([]ImageInfo, error) {
 	cli, err := getClient()
 	if err != nil {
 		return nil, err
@@ -516,7 +571,229 @@ func ListImages() ([]image.Summary, error) {
 		return nil, fmt.Errorf("获取镜像列表失败: %w", err)
 	}
 
-	return images, nil
+	result := make([]ImageInfo, 0, len(images))
+	for _, img := range images {
+		id := strings.TrimPrefix(img.ID, "sha256:")
+		shortID := id
+		if len(shortID) > 12 {
+			shortID = shortID[:12]
+		}
+		result = append(result, ImageInfo{
+			ID:          img.ID,
+			ShortID:     shortID,
+			RepoTags:    img.RepoTags,
+			RepoDigests: img.RepoDigests,
+			Size:        img.Size,
+			SizeText:    formatBytes(uint64(max(img.Size, 0))),
+			Created:     img.Created,
+			Containers:  img.Containers,
+			Labels:      img.Labels,
+		})
+	}
+
+	return result, nil
+}
+
+func PullImage(imageName string, registryConfig *RegistryConfig) error {
+	cli, err := getClient()
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	options := image.PullOptions{}
+	if registryConfig != nil && registryConfig.Username != "" {
+		auth, err := registry.EncodeAuthConfig(registry.AuthConfig{
+			Username:      registryConfig.Username,
+			Password:      registryConfig.Password,
+			ServerAddress: registryConfig.ServerAddress,
+		})
+		if err != nil {
+			return fmt.Errorf("生成仓库认证失败: %w", err)
+		}
+		options.RegistryAuth = auth
+	}
+
+	reader, err := cli.ImagePull(context.Background(), imageName, options)
+	if err != nil {
+		return fmt.Errorf("拉取镜像失败: %w", err)
+	}
+	defer reader.Close()
+
+	_, err = io.Copy(io.Discard, reader)
+	if err != nil {
+		return fmt.Errorf("读取拉取结果失败: %w", err)
+	}
+	return nil
+}
+
+func RemoveImage(imageID string, force bool) error {
+	cli, err := getClient()
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	_, err = cli.ImageRemove(context.Background(), imageID, image.RemoveOptions{Force: force, PruneChildren: true})
+	if err != nil {
+		return fmt.Errorf("删除镜像失败: %w", err)
+	}
+	return nil
+}
+
+func TagImage(source string, target string) error {
+	cli, err := getClient()
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	if err := cli.ImageTag(context.Background(), source, target); err != nil {
+		return fmt.Errorf("镜像打标签失败: %w", err)
+	}
+	return nil
+}
+
+func PruneImages() (*PruneResult, error) {
+	cli, err := getClient()
+	if err != nil {
+		return nil, err
+	}
+	defer cli.Close()
+
+	report, err := cli.ImagesPrune(context.Background(), filters.NewArgs())
+	if err != nil {
+		return nil, fmt.Errorf("清理镜像失败: %w", err)
+	}
+
+	return &PruneResult{
+		Deleted:        len(report.ImagesDeleted),
+		SpaceReclaimed: report.SpaceReclaimed,
+		SpaceText:      formatBytes(report.SpaceReclaimed),
+	}, nil
+}
+
+func TestRegistry(config RegistryConfig) error {
+	cli, err := getClient()
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	_, err = cli.RegistryLogin(context.Background(), registry.AuthConfig{
+		Username:      config.Username,
+		Password:      config.Password,
+		ServerAddress: config.ServerAddress,
+	})
+	if err != nil {
+		return fmt.Errorf("仓库登录失败: %w", err)
+	}
+	return nil
+}
+
+func ListVolumes() ([]VolumeInfo, error) {
+	cli, err := getClient()
+	if err != nil {
+		return nil, err
+	}
+	defer cli.Close()
+
+	res, err := cli.VolumeList(context.Background(), volume.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("获取存储卷列表失败: %w", err)
+	}
+
+	volumes := make([]VolumeInfo, 0, len(res.Volumes))
+	for _, v := range res.Volumes {
+		if v == nil {
+			continue
+		}
+		size := int64(-1)
+		sizeText := "-"
+		if v.UsageData != nil {
+			size = v.UsageData.Size
+			if size >= 0 {
+				sizeText = formatBytes(uint64(size))
+			}
+		}
+		volumes = append(volumes, VolumeInfo{
+			Name:       v.Name,
+			Driver:     v.Driver,
+			Mountpoint: v.Mountpoint,
+			CreatedAt:  v.CreatedAt,
+			Scope:      v.Scope,
+			Labels:     v.Labels,
+			Options:    v.Options,
+			Size:       size,
+			SizeText:   sizeText,
+		})
+	}
+	return volumes, nil
+}
+
+func CreateVolume(req *CreateVolumeRequest) (*VolumeInfo, error) {
+	cli, err := getClient()
+	if err != nil {
+		return nil, err
+	}
+	defer cli.Close()
+
+	driver := strings.TrimSpace(req.Driver)
+	if driver == "" {
+		driver = "local"
+	}
+	vol, err := cli.VolumeCreate(context.Background(), volume.CreateOptions{
+		Name:       req.Name,
+		Driver:     driver,
+		Labels:     req.Labels,
+		DriverOpts: req.Options,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("创建存储卷失败: %w", err)
+	}
+
+	return &VolumeInfo{
+		Name:       vol.Name,
+		Driver:     vol.Driver,
+		Mountpoint: vol.Mountpoint,
+		CreatedAt:  vol.CreatedAt,
+		Scope:      vol.Scope,
+		Labels:     vol.Labels,
+		Options:    vol.Options,
+		Size:       -1,
+		SizeText:   "-",
+	}, nil
+}
+
+func RemoveVolume(name string, force bool) error {
+	cli, err := getClient()
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	if err := cli.VolumeRemove(context.Background(), name, force); err != nil {
+		return fmt.Errorf("删除存储卷失败: %w", err)
+	}
+	return nil
+}
+
+func PruneVolumes() (*PruneResult, error) {
+	cli, err := getClient()
+	if err != nil {
+		return nil, err
+	}
+	defer cli.Close()
+
+	report, err := cli.VolumesPrune(context.Background(), filters.NewArgs())
+	if err != nil {
+		return nil, fmt.Errorf("清理存储卷失败: %w", err)
+	}
+	return &PruneResult{
+		Deleted:        len(report.VolumesDeleted),
+		SpaceReclaimed: report.SpaceReclaimed,
+		SpaceText:      formatBytes(report.SpaceReclaimed),
+	}, nil
 }
 
 func CheckDockerAvailable() error {

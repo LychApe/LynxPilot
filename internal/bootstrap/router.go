@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	routeDocker "github.com/LychApe/LynxPilot/internal/router/docker"
+	routeFile "github.com/LychApe/LynxPilot/internal/router/file"
 	routeServer "github.com/LychApe/LynxPilot/internal/router/server"
 	routeSetting "github.com/LychApe/LynxPilot/internal/router/setting"
 	routeUser "github.com/LychApe/LynxPilot/internal/router/user"
@@ -40,6 +41,7 @@ func LoadRouter(config *Config) *gin.Engine {
 
 	// 注册路由
 	routeDocker.Register(router)
+	routeFile.Register(router)
 	routeServer.Register(router)
 	routeSetting.Register(router)
 	routeUser.Register(router)

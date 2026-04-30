@@ -99,8 +99,96 @@ export function getContainerLogs(id: string, tail = '100') {
   })
 }
 
+export interface ImageInfo {
+  id: string
+  short_id: string
+  repo_tags: string[]
+  repo_digests: string[]
+  size: number
+  size_text: string
+  created: number
+  containers: number
+  labels: Record<string, string>
+}
+
+export interface RegistryConfig {
+  name: string
+  server_address: string
+  username: string
+  password?: string
+}
+
+export interface VolumeInfo {
+  name: string
+  driver: string
+  mountpoint: string
+  created_at: string
+  scope: string
+  labels: Record<string, string>
+  options: Record<string, string>
+  size: number
+  size_text: string
+}
+
+export interface PruneResult {
+  deleted: number
+  space_reclaimed: number
+  space_text: string
+}
+
+export interface CreateVolumeRequest {
+  name: string
+  driver: string
+  labels?: Record<string, string>
+  options?: Record<string, string>
+}
+
 export function listImages() {
-  return req.get('/private/docker/images')
+  return req.get<unknown, { data: ImageInfo[] }>('/private/docker/images')
+}
+
+export function pullImage(image: string, registry?: string) {
+  return req.post('/private/docker/images/pull', { image, registry }, { timeout: 120000 })
+}
+
+export function removeImage(id: string, force = false) {
+  return req.delete(`/private/docker/images/${encodeURIComponent(id)}`, { params: { force } })
+}
+
+export function tagImage(source: string, target: string) {
+  return req.post('/private/docker/images/tag', { source, target })
+}
+
+export function pruneImages() {
+  return req.post<unknown, { data: PruneResult }>('/private/docker/images/prune')
+}
+
+export function listRegistries() {
+  return req.get<unknown, { data: RegistryConfig[] }>('/private/docker/registries')
+}
+
+export function saveRegistries(data: RegistryConfig[]) {
+  return req.put('/private/docker/registries', data)
+}
+
+export function testRegistry(data: RegistryConfig) {
+  return req.post('/private/docker/registries/test', data)
+}
+
+export function listVolumes() {
+  return req.get<unknown, { data: VolumeInfo[] }>('/private/docker/volumes')
+}
+
+export function createVolume(data: CreateVolumeRequest) {
+  return req.post('/private/docker/volumes', data)
+}
+
+export function removeVolume(name: string, force = false) {
+  return req.delete(`/private/docker/volumes/${encodeURIComponent(name)}`, { params: { force } })
+}
+
+export function pruneVolumes() {
+  return req.post<unknown, { data: PruneResult }>('/private/docker/volumes/prune')
 }
 
 export interface DockerConnection {
@@ -222,4 +310,8 @@ export function composeLogs(name: string, tail = '100') {
   return req.get<unknown, { data: { logs: string } }>(`/private/docker/compose/${name}/logs`, {
     params: { tail },
   })
+}
+
+export function getComposeConfig(name: string) {
+  return req.get<unknown, { data: { content: string } }>(`/private/docker/compose/${name}/config`)
 }

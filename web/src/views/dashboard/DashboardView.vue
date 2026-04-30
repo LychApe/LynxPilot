@@ -246,6 +246,10 @@ function normalizePercent(value: number) {
   return Math.min(Math.max(value, 0), 100)
 }
 
+const allFilesystems = computed(() => {
+  return serverStatus.value?.storage.filesystems ?? []
+})
+
 function stopRefreshTimer() {
   if (!timer) return
   clearInterval(timer)
@@ -362,6 +366,7 @@ onBeforeUnmount(() => {
           v-for="metric in serverMetrics"
           :key="metric.key"
           class="metric-card"
+          :class="{ 'metric-card--storage': metric.key === 'storage' }"
         >
           <div class="metric-heading">
             <span class="metric-name">
@@ -379,6 +384,24 @@ onBeforeUnmount(() => {
           <div class="metric-detail">
             {{ metric.detail }}
           </div>
+          <template v-if="metric.key === 'storage' && allFilesystems.length > 1">
+            <div class="storage-hover-trigger" />
+            <div class="storage-popup">
+              <div class="storage-popup-title">全部存储</div>
+              <div v-for="fs in allFilesystems" :key="fs.path" class="storage-popup-item">
+                <div class="storage-popup-row">
+                  <span class="storage-popup-path">{{ fs.path }}</span>
+                  <span class="storage-popup-pct">{{ formatPercent(fs.used_percent) }}</span>
+                </div>
+                <div class="storage-popup-bar">
+                  <span class="storage-popup-bar-inner" :style="{ width: `${normalizePercent(fs.used_percent)}%` }" />
+                </div>
+                <div class="storage-popup-info">
+                  {{ fs.used_text }} / {{ fs.total_text }}，可用 {{ fs.available_text }}
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </a-spin>
@@ -641,12 +664,102 @@ onBeforeUnmount(() => {
 }
 
 .metric-card {
+  position: relative;
   min-width: 0;
   padding: 18px;
   background: #fff;
   border: 1px solid rgba(5, 5, 5, 0.06);
   border-radius: 14px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.metric-card--storage {
+  cursor: default;
+}
+
+.storage-hover-trigger {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.storage-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 50;
+  min-width: 320px;
+  padding: 14px;
+  pointer-events: none;
+  opacity: 0;
+  background: #fff;
+  border: 1px solid rgba(5, 5, 5, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.14);
+  transform: translateY(4px);
+  transition: opacity .2s, transform .2s;
+}
+
+.metric-card--storage:hover .storage-popup {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.storage-popup-title {
+  margin-bottom: 10px;
+  color: rgba(0, 0, 0, 0.88);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.storage-popup-item {
+  padding: 8px 0;
+}
+
+.storage-popup-item + .storage-popup-item {
+  border-top: 1px solid rgba(5, 5, 5, 0.06);
+}
+
+.storage-popup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.storage-popup-path {
+  color: rgba(0, 0, 0, 0.88);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+}
+
+.storage-popup-pct {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.storage-popup-bar {
+  height: 4px;
+  margin-top: 6px;
+  overflow: hidden;
+  background: rgba(22, 119, 255, 0.09);
+  border-radius: 999px;
+}
+
+.storage-popup-bar-inner {
+  display: block;
+  height: 100%;
+  background: #1677ff;
+  border-radius: inherit;
+}
+
+.storage-popup-info {
+  margin-top: 4px;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 11px;
 }
 
 .metric-heading {

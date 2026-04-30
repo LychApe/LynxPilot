@@ -38,7 +38,21 @@ func Register(router *gin.Engine) {
 		group.POST("/compose/:name/start", apiDocker.ComposeStartHandler)
 		group.GET("/compose/:name/logs", apiDocker.ComposeLogsHandler)
 		group.GET("/compose/:name/ps", apiDocker.ComposePsHandler)
+		group.GET("/compose/:name/config", apiDocker.GetComposeConfigHandler)
 
 		group.GET("/images", apiDocker.ListImagesHandler)
+		group.POST("/images/pull", apiDocker.PullImageHandler)
+		group.POST("/images/tag", apiDocker.TagImageHandler)
+		group.POST("/images/prune", apiDocker.PruneImagesHandler)
+		group.DELETE("/images/:id", apiDocker.RemoveImageHandler)
+
+		group.GET("/registries", apiDocker.ListRegistriesHandler)
+		group.PUT("/registries", apiDocker.SaveRegistriesHandler)
+		group.POST("/registries/test", apiDocker.TestRegistryHandler)
+
+		group.GET("/volumes", apiDocker.ListVolumesHandler)
+		group.POST("/volumes", apiDocker.CreateVolumeHandler)
+		group.POST("/volumes/prune", apiDocker.PruneVolumesHandler)
+		group.DELETE("/volumes/:name", apiDocker.RemoveVolumeHandler)
 	}
 }
