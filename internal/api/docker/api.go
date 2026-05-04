@@ -271,6 +271,31 @@ func TestRegistryHandler(c *gin.Context) {
 	response.OK(c, gin.H{"message": "仓库登录成功"})
 }
 
+func GetRegistryMirrorsHandler(c *gin.Context) {
+	mirrors, err := dockerService.GetRegistryMirrors()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, 500, "读取镜像加速配置失败: "+err.Error())
+		return
+	}
+	if mirrors == nil {
+		mirrors = []dockerService.MirrorConfig{}
+	}
+	response.OK(c, mirrors)
+}
+
+func SaveRegistryMirrorsHandler(c *gin.Context) {
+	var mirrors []dockerService.MirrorConfig
+	if err := c.ShouldBindJSON(&mirrors); err != nil {
+		response.Error(c, http.StatusBadRequest, 400, "请求参数无效: "+err.Error())
+		return
+	}
+	if err := dockerService.SaveRegistryMirrors(mirrors); err != nil {
+		response.Error(c, http.StatusInternalServerError, 500, "保存镜像加速配置失败: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{"message": "镜像加速配置已保存，重启 Docker 后生效"})
+}
+
 func SearchContainersHandler(c *gin.Context) {
 	name := c.Query("name")
 	if name == "" {

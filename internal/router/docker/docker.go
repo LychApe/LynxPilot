@@ -50,6 +50,9 @@ func Register(router *gin.Engine) {
 		group.PUT("/registries", apiDocker.SaveRegistriesHandler)
 		group.POST("/registries/test", apiDocker.TestRegistryHandler)
 
+		group.GET("/mirrors", apiDocker.GetRegistryMirrorsHandler)
+		group.PUT("/mirrors", apiDocker.SaveRegistryMirrorsHandler)
+
 		group.GET("/volumes", apiDocker.ListVolumesHandler)
 		group.POST("/volumes", apiDocker.CreateVolumeHandler)
 		group.POST("/volumes/prune", apiDocker.PruneVolumesHandler)

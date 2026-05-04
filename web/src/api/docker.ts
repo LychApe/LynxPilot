@@ -197,6 +197,26 @@ export interface DockerConnection {
   cert_path: string
 }
 
+export interface ContainerDefaults {
+  restart_policy: string
+  log_driver: string
+  log_max_size: string
+  log_max_file: number
+  cpu_limit: string
+  memory_limit: string
+}
+
+export interface ContainerUIPrefs {
+  auto_refresh_interval: number
+  show_stopped_default: boolean
+}
+
+export interface AllSettings {
+  connection: DockerConnection
+  container_defaults: ContainerDefaults
+  ui_prefs: ContainerUIPrefs
+}
+
 export interface DockerPingResult {
   available: boolean
   custom_connection: boolean
@@ -213,6 +233,38 @@ export function saveDockerConnection(conn: DockerConnection) {
 
 export function testDockerConnection(conn: DockerConnection) {
   return req.post('/private/setting/docker/connection/test', conn)
+}
+
+export function getContainerDefaults() {
+  return req.get<unknown, { data: ContainerDefaults }>('/private/setting/container/defaults')
+}
+
+export function saveContainerDefaults(defaults: ContainerDefaults) {
+  return req.put('/private/setting/container/defaults', defaults)
+}
+
+export function getUIPrefs() {
+  return req.get<unknown, { data: ContainerUIPrefs }>('/private/setting/ui/prefs')
+}
+
+export function saveUIPrefs(prefs: ContainerUIPrefs) {
+  return req.put('/private/setting/ui/prefs', prefs)
+}
+
+export function getAllSettings() {
+  return req.get<unknown, { data: AllSettings }>('/private/setting/all')
+}
+
+export interface MirrorConfig {
+  url: string
+}
+
+export function getRegistryMirrors() {
+  return req.get<unknown, { data: MirrorConfig[] }>('/private/docker/mirrors')
+}
+
+export function saveRegistryMirrors(data: MirrorConfig[]) {
+  return req.put('/private/docker/mirrors', data)
 }
 
 export interface NetworkInfo {

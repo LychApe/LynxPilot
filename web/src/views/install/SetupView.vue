@@ -14,7 +14,7 @@ const loading = ref(false)
 
 onMounted(async () => {
   try {
-    const res: any = await getStatus()
+    const res = await getStatus()
     if (res.data.installed) {
       router.replace('/login')
     }
@@ -43,7 +43,7 @@ watch(
 const confirmPasswordRules = [
   { required: true, whitespace: true, message: '请再次输入密码' },
   {
-    validator: async (_rule: any, value: string) => {
+    validator: async (_rule: unknown, value: string) => {
       if (value && value !== model.password) {
         return Promise.reject(new Error('两次输入的密码不一致'))
       }
@@ -54,8 +54,11 @@ const confirmPasswordRules = [
 async function handleFinish() {
   loading.value = true
   try {
-    const { confirmPassword, ...data } = model
-    await register(data)
+    await register({
+      username: model.username,
+      email: model.email,
+      password: model.password,
+    })
     message.success('安装完成，正在跳转...')
     router.push('/login')
   } catch {

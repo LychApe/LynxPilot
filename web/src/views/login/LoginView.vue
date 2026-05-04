@@ -16,7 +16,7 @@ const model = reactive({
 async function handleFinish() {
   loading.value = true
   try {
-    const res: any = await login(model)
+    const res = await login(model)
     localStorage.setItem('token', res.data.token)
     localStorage.setItem('expires_at', res.data.expires_at)
     message.success('登录成功')

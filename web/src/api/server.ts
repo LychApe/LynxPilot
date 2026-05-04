@@ -1,7 +1,11 @@
 import req from '@/utils/req'
 
-export function getStatus() {
-  return req.get('/public/server/status')
+interface PublicServerStatus {
+  installed: boolean
+}
+
+export function getStatus<T = PublicServerStatus>() {
+  return req.get<unknown, { data: T }>('/public/server/status')
 }
 
 export function getPrivateStatus() {

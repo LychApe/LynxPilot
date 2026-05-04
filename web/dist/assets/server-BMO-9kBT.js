@@ -1,0 +1,1 @@
+import{t as e}from"./req-BHyHMkav.js";function t(){return e.get(`/public/server/status`)}function n(){return e.get(`/private/server/status`)}export{t as n,n as t};

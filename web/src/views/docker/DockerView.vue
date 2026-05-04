@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ComposeProject, ContainerInfo, DockerConnection, DockerPingResult, ImageInfo, NetworkInfo, RegistryConfig, VolumeInfo } from '@/api/docker'
+import type { ComposeProject, ContainerInfo, DockerPingResult, ImageInfo, MirrorConfig, NetworkInfo, RegistryConfig, VolumeInfo } from '@/api/docker'
 import {
   checkComposeAvailable,
   composeDown,
@@ -10,7 +10,7 @@ import {
   createNetwork,
   createVolume,
   getComposeConfig,
-  getDockerConnection,
+  getRegistryMirrors,
   listImages,
   listComposeProjects,
   listContainers,
@@ -25,13 +25,13 @@ import {
   removeNetwork,
   removeVolume,
   restartContainer,
-  saveDockerConnection,
   saveRegistries,
+  saveRegistryMirrors,
   startContainer,
   stopContainer,
   tagImage,
   testRegistry,
-  testDockerConnection,
+  getUIPrefs,
   pullImage,
 } from '@/api/docker'
 import {
@@ -45,11 +45,16 @@ import {
   LinkOutlined,
   PlusOutlined,
   ReloadOutlined,
+  RocketOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@antdv-next/icons'
 import { Modal, message } from 'antdv-next'
 import { computed, h, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import ContainerDefaultsCard from './components/ContainerDefaultsCard.vue'
+import DockerConnectionCard from './components/DockerConnectionCard.vue'
+import UIPreferencesCard from './components/UIPreferencesCard.vue'
+import { useDockerSettings } from './composables/useDockerSettings'
 
 const loading = shallowRef(false)
 const dockerAvailable = shallowRef(true)
@@ -65,11 +70,25 @@ const volumes = ref<VolumeInfo[]>([])
 const composeAvailable = shallowRef(false)
 const searchText = ref('')
 const showAll = ref(true)
+const refreshIntervalSeconds = shallowRef(10)
+const settingsReady = shallowRef(false)
 
-const configVisible = shallowRef(false)
-const configLoading = shallowRef(false)
-const testLoading = shallowRef(false)
-const configForm = ref<DockerConnection>({ host: '', tls_verify: false, cert_path: '' })
+const settingsVisible = shallowRef(false)
+const {
+  loading: settingsLoading,
+  savingConnection,
+  savingDefaults,
+  savingPrefs,
+  connection,
+  containerDefaults,
+  uiPrefs,
+  testLoading,
+  loadAll: loadDockerSettings,
+  saveConnection,
+  testConnection,
+  saveDefaults,
+  savePrefs,
+} = useDockerSettings()
 
 const createNetworkVisible = shallowRef(false)
 const createNetworkLoading = shallowRef(false)
@@ -87,6 +106,10 @@ const registryForm = ref<RegistryConfig[]>([])
 const createVolumeVisible = shallowRef(false)
 const createVolumeLoading = shallowRef(false)
 const newVolume = ref({ name: '', driver: 'local', labels: '', options: '' })
+
+const mirrorVisible = shallowRef(false)
+const mirrorLoading = shallowRef(false)
+const mirrorForm = ref<MirrorConfig[]>([])
 
 const composeUpVisible = shallowRef(false)
 const composeUpLoading = shallowRef(false)
@@ -704,6 +727,20 @@ async function fetchDockerStatus() {
   } catch { dockerAvailable.value = false }
 }
 
+async function loadUIPreferences() {
+  try {
+    const res = await getUIPrefs()
+    const prefs = res.data
+    if (prefs) {
+      showAll.value = prefs.show_stopped_default !== false
+      refreshIntervalSeconds.value = prefs.auto_refresh_interval ?? 10
+    }
+  } catch {
+    showAll.value = true
+    refreshIntervalSeconds.value = 10
+  }
+}
+
 async function loadData() {
   loading.value = true
   try {
@@ -882,6 +919,37 @@ async function handleCreateVolume() {
   finally { createVolumeLoading.value = false }
 }
 
+async function openMirrorConfig() {
+  mirrorVisible.value = true
+  mirrorLoading.value = true
+  try {
+    const res = await getRegistryMirrors()
+    mirrorForm.value = (res.data ?? []).map((m) => ({ ...m }))
+    if (mirrorForm.value.length === 0) {
+      mirrorForm.value = [{ url: '' }]
+    }
+  } catch { mirrorForm.value = [{ url: '' }] }
+  finally { mirrorLoading.value = false }
+}
+
+function addMirror() {
+  mirrorForm.value.push({ url: '' })
+}
+
+function removeMirror(index: number) {
+  mirrorForm.value.splice(index, 1)
+}
+
+async function handleSaveMirrors() {
+  mirrorLoading.value = true
+  try {
+    await saveRegistryMirrors(mirrorForm.value.filter((m) => m.url))
+    message.success('镜像加速配置已保存，重启 Docker 后生效')
+    mirrorVisible.value = false
+  } catch { message.error('保存镜像加速配置失败') }
+  finally { mirrorLoading.value = false }
+}
+
 function handleRemoveVolume(name: string) {
   Modal.confirm({
     title: '确认删除存储卷', content: `确定要删除存储卷 "${name}" 吗？被使用中的卷无法删除。`, icon: () => h(ExclamationCircleOutlined), okType: 'danger', okText: '删除', cancelText: '取消',
@@ -929,35 +997,31 @@ async function handleComposeUp() {
   finally { composeUpLoading.value = false }
 }
 
-async function openConfig() {
-  configVisible.value = true
-  configLoading.value = true
-  try {
-    const res = await getDockerConnection()
-    const conn = res.data
-    configForm.value = { host: conn?.host ?? '', tls_verify: conn?.tls_verify ?? false, cert_path: conn?.cert_path ?? '' }
-  } catch { configForm.value = { host: '', tls_verify: false, cert_path: '' } }
-  finally { configLoading.value = false }
-}
-
-async function handleTestConnection() {
-  testLoading.value = true
-  try { await testDockerConnection(configForm.value); message.success('连接测试成功') }
-  catch (err: unknown) {
-    const serverMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-    message.error(serverMsg ?? '连接测试失败')
-  }
-  finally { testLoading.value = false }
+async function openSettings() {
+  settingsVisible.value = true
+  await loadDockerSettings()
 }
 
 async function handleSaveConnection() {
-  configLoading.value = true
-  try { await saveDockerConnection(configForm.value); message.success('配置已保存'); configVisible.value = false; await loadData() }
-  catch { message.error('保存配置失败') }
-  finally { configLoading.value = false }
+  const saved = await saveConnection()
+  if (saved) await loadData()
 }
 
-function startRefreshTimer() { stopRefreshTimer(); refreshTimer = setInterval(refreshData, 10000) }
+async function handleSavePrefs() {
+  const saved = await savePrefs()
+  if (!saved) return
+
+  showAll.value = uiPrefs.value.show_stopped_default !== false
+  refreshIntervalSeconds.value = uiPrefs.value.auto_refresh_interval ?? 10
+  startRefreshTimer()
+  if (activeTab.value === 'containers') await fetchContainers()
+}
+
+function startRefreshTimer() {
+  stopRefreshTimer()
+  if (refreshIntervalSeconds.value <= 0) return
+  refreshTimer = setInterval(refreshData, refreshIntervalSeconds.value * 1000)
+}
 function stopRefreshTimer() { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null } }
 
 const containerColumns = [
@@ -1012,10 +1076,19 @@ const volumeColumns = [
   { title: '操作', key: 'action', width: 100, fixed: 'right' as const },
 ]
 
-watch(showAll, () => fetchContainers())
+watch(showAll, () => {
+  if (settingsReady.value && activeTab.value === 'containers') void fetchContainers()
+})
 watch(activeTab, () => refreshData())
 
-onMounted(() => { loadData(); startRefreshTimer() })
+onMounted(() => {
+  void (async () => {
+    await loadUIPreferences()
+    await loadData()
+    settingsReady.value = true
+    startRefreshTimer()
+  })()
+})
 onBeforeUnmount(() => stopRefreshTimer())
 </script>
 
@@ -1032,7 +1105,7 @@ onBeforeUnmount(() => stopRefreshTimer())
             <span class="status-dot" />
             <span class="status-text">{{ dockerAvailable ? 'Docker 已连接' : 'Docker 不可用' }}</span>
           </div>
-          <a-button @click="openConfig"><template #icon><SettingOutlined /></template>连接设置</a-button>
+          <a-button @click="openSettings"><template #icon><SettingOutlined /></template>管理设置</a-button>
           <a-button @click="refreshData"><template #icon><ReloadOutlined :spin="refreshing" /></template>刷新</a-button>
         </div>
       </div>
@@ -1103,6 +1176,7 @@ onBeforeUnmount(() => stopRefreshTimer())
           <a-tab-pane key="images" tab="镜像">
             <div class="docker-toolbar">
               <a-button type="primary" @click="pullImageVisible = true"><template #icon><PlusOutlined /></template>拉取镜像</a-button>
+              <a-button @click="openMirrorConfig"><template #icon><RocketOutlined /></template>镜像加速</a-button>
               <a-button @click="handlePruneImages"><template #icon><DeleteOutlined /></template>清理未使用镜像</a-button>
             </div>
             <a-table :columns="imageColumns" :data-source="images" :pagination="{ pageSize: 20, showTotal: (t: number) => `共 ${t} 个镜像` }" :scroll="{ x: 940 }" row-key="id" size="middle">
@@ -1200,72 +1274,36 @@ onBeforeUnmount(() => stopRefreshTimer())
       <div v-else class="docker-unavailable">
         <CloudOutlined class="unavailable-icon" />
         <p class="unavailable-title">无法连接到 Docker</p>
-        <p class="unavailable-desc">请确认 Docker 服务已启动，或者在连接设置中配置远程 Docker 地址。</p>
+        <p class="unavailable-desc">请确认 Docker 服务已启动，或者在管理设置中配置远程 Docker 地址。</p>
         <div class="unavailable-actions">
-          <a-button @click="openConfig"><template #icon><LinkOutlined /></template>连接设置</a-button>
+          <a-button @click="openSettings"><template #icon><LinkOutlined /></template>管理设置</a-button>
           <a-button @click="loadData">重新检测</a-button>
         </div>
       </div>
     </a-spin>
 
-    <a-modal v-model:open="configVisible" title="Docker 连接设置" :confirm-loading="configLoading" ok-text="保存" cancel-text="取消" width="720px" @ok="handleSaveConnection">
-      <a-spin :spinning="configLoading">
-        <div class="connection-panel">
-          <div class="connection-hero">
-            <div class="connection-hero-icon"><LinkOutlined /></div>
-            <div class="connection-hero-body">
-              <div class="connection-hero-title">Docker Engine 连接</div>
-              <div class="connection-hero-desc">连接到本机或远程 Docker API，留空 Host 会使用默认环境连接。</div>
-            </div>
-            <span class="connection-mode-badge">{{ configForm.host ? '远程连接' : '本地默认' }}</span>
-          </div>
+    <a-modal v-model:open="settingsVisible" title="容器管理设置" :footer="null" width="960px">
+      <a-spin :spinning="settingsLoading">
+        <div class="docker-settings-panel">
+          <DockerConnectionCard
+            v-model="connection"
+            :saving="savingConnection"
+            :testing="testLoading"
+            @save="handleSaveConnection"
+            @test="testConnection"
+          />
 
-          <div class="connection-port-grid">
-            <button type="button" class="connection-port-card" @click="configForm.tls_verify = false">
-              <span class="connection-port-title">2375 / 非 TLS</span>
-              <span class="connection-port-desc">适合内网或受信网络，例如 tcp://10.1.0.3:2375</span>
-            </button>
-            <button type="button" class="connection-port-card connection-port-card-secure" @click="configForm.tls_verify = true">
-              <span class="connection-port-title">2376 / TLS</span>
-              <span class="connection-port-desc">需要 ca.pem、cert.pem、key.pem 证书目录</span>
-            </button>
-          </div>
+          <ContainerDefaultsCard
+            v-model="containerDefaults"
+            :saving="savingDefaults"
+            @save="saveDefaults"
+          />
 
-          <div class="connection-section">
-            <div class="config-field">
-              <label class="config-label">Docker Host</label>
-              <a-input v-model:value="configForm.host" placeholder="例如: tcp://10.1.0.3:2375" size="large" />
-              <div class="config-help">常用格式：unix:///var/run/docker.sock、tcp://IP:2375、tcp://IP:2376</div>
-            </div>
-            <div class="connection-presets">
-              <button type="button" @click="configForm.host = ''">本地默认</button>
-              <button type="button" @click="configForm.host = 'unix:///var/run/docker.sock'">Linux Socket</button>
-              <button type="button" @click="configForm.host = 'tcp://10.1.0.3:2375'; configForm.tls_verify = false">10.1.0.3:2375</button>
-            </div>
-          </div>
-
-          <div class="connection-section connection-tls-section" :class="{ 'connection-tls-enabled': configForm.tls_verify }">
-            <div class="connection-switch-row">
-              <div>
-                <div class="config-label">TLS 验证</div>
-                <div class="config-help">端口 2376 会自动启用 TLS；2375 通常关闭 TLS。</div>
-              </div>
-              <a-switch v-model:checked="configForm.tls_verify" />
-            </div>
-            <div v-if="configForm.tls_verify" class="config-field">
-              <label class="config-label">证书目录</label>
-              <a-input v-model:value="configForm.cert_path" placeholder="包含 ca.pem、cert.pem、key.pem 的目录路径" />
-              <div class="config-help">留空会跳过证书验证，仅建议在测试环境使用。</div>
-            </div>
-          </div>
-
-          <div class="connection-test-row">
-            <div class="connection-test-copy">
-              <div class="config-label">连接测试</div>
-              <div class="config-help">保存前建议先测试，错误详情会直接显示在页面提示中。</div>
-            </div>
-            <a-button :loading="testLoading" @click="handleTestConnection">测试连接</a-button>
-          </div>
+          <UIPreferencesCard
+            v-model="uiPrefs"
+            :saving="savingPrefs"
+            @save="handleSavePrefs"
+          />
         </div>
       </a-spin>
     </a-modal>
@@ -1326,6 +1364,26 @@ onBeforeUnmount(() => stopRefreshTimer())
       </div>
     </a-modal>
 
+    <a-modal v-model:open="mirrorVisible" title="镜像加速配置" :confirm-loading="mirrorLoading" ok-text="保存" cancel-text="取消" width="640px" @ok="handleSaveMirrors">
+      <a-spin :spinning="mirrorLoading">
+        <div class="config-hint" style="margin-bottom: 16px">
+          <div class="config-hint-title">镜像加速说明</div>
+          <ul class="config-hint-list">
+            <li>配置将写入 /etc/docker/daemon.json 的 registry-mirrors 字段</li>
+            <li>保存后需重启 Docker 服务才能生效：<code>systemctl restart docker</code></li>
+            <li>仅对本机 Docker 有效，远程连接的 Docker 不受影响</li>
+          </ul>
+        </div>
+        <div class="visual-form">
+          <div v-for="(mirror, idx) in mirrorForm" :key="idx" class="mirror-item">
+            <a-input v-model:value="mirror.url" placeholder="https://mirror.ccs.tencentyun.com" style="flex: 1; font-family: monospace" />
+            <a-button v-if="mirrorForm.length > 1" type="text" danger @click="removeMirror(idx)"><template #icon><DeleteOutlined /></template></a-button>
+          </div>
+          <a-button type="dashed" block @click="addMirror"><template #icon><PlusOutlined /></template>添加加速地址</a-button>
+        </div>
+      </a-spin>
+    </a-modal>
+
     <a-modal v-model:open="composeUpVisible" title="部署 Compose 项目" :confirm-loading="composeUpLoading" ok-text="部署" cancel-text="取消" width="680px" @ok="handleComposeUp">
       <div class="config-form">
         <div class="config-field"><label class="config-label">项目名称（可选）</label><a-input v-model:value="composeProjectName" placeholder="留空则使用 compose 文件中的名称" /></div>
@@ -1336,7 +1394,7 @@ onBeforeUnmount(() => stopRefreshTimer())
             <button type="button" class="editor-toolbar-btn" @click="openVisualConfig"><FormOutlined class="editor-toolbar-icon" />可视化配置</button>
           </div>
           <div ref="composeEditorRef" class="compose-editor">
-            <div class="compose-editor-gutter" @scroll.passive>
+            <div class="compose-editor-gutter">
               <div v-for="(_, i) in composeLines" :key="i" class="line-num">{{ i + 1 }}</div>
             </div>
             <textarea
@@ -1455,28 +1513,8 @@ onBeforeUnmount(() => stopRefreshTimer())
 .unavailable-title { color: rgba(0,0,0,.65); font-size: 16px; font-weight: 500 }
 .unavailable-desc { margin: 8px 0 20px; color: rgba(0,0,0,.45); font-size: 14px }
 .unavailable-actions { display: flex; gap: 12px }
-.connection-panel { display: flex; flex-direction: column; gap: 16px }
-.connection-hero { display: flex; align-items: center; gap: 14px; padding: 16px; background: linear-gradient(135deg, rgba(22,119,255,.08), rgba(22,119,255,.02)); border: 1px solid rgba(22,119,255,.12); border-radius: 14px }
-.connection-hero-icon { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; color: #1677ff; font-size: 20px; background: #fff; border: 1px solid rgba(22,119,255,.12); border-radius: 12px; box-shadow: 0 8px 20px rgba(22,119,255,.08) }
-.connection-hero-body { flex: 1; min-width: 0 }
-.connection-hero-title { color: rgba(0,0,0,.88); font-size: 16px; font-weight: 700 }
-.connection-hero-desc { margin-top: 3px; color: rgba(0,0,0,.48); font-size: 13px; line-height: 1.5 }
-.connection-mode-badge { flex: none; padding: 4px 10px; color: #1677ff; font-size: 12px; font-weight: 600; background: #fff; border: 1px solid rgba(22,119,255,.18); border-radius: 999px }
-.connection-port-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
-.connection-port-card { display: flex; flex-direction: column; gap: 4px; padding: 13px 14px; text-align: left; cursor: pointer; background: #fff; border: 1px solid rgba(5,5,5,.08); border-radius: 12px; transition: border-color .2s, box-shadow .2s, transform .2s }
-.connection-port-card:hover { border-color: rgba(22,119,255,.35); box-shadow: 0 8px 24px rgba(15,23,42,.06); transform: translateY(-1px) }
-.connection-port-card-secure:hover { border-color: rgba(82,196,26,.36) }
-.connection-port-title { color: rgba(0,0,0,.82); font-size: 13px; font-weight: 700 }
-.connection-port-desc { color: rgba(0,0,0,.45); font-size: 12px; line-height: 1.5 }
-.connection-section { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #fff; border: 1px solid rgba(5,5,5,.06); border-radius: 12px }
-.connection-presets { display: flex; flex-wrap: wrap; gap: 8px }
-.connection-presets button { padding: 4px 10px; color: rgba(0,0,0,.65); font-size: 12px; cursor: pointer; background: rgba(0,0,0,.02); border: 1px solid rgba(5,5,5,.08); border-radius: 999px; transition: color .2s, border-color .2s, background .2s }
-.connection-presets button:hover { color: #1677ff; background: rgba(22,119,255,.04); border-color: rgba(22,119,255,.3) }
-.connection-tls-section { background: rgba(0,0,0,.012) }
-.connection-tls-enabled { background: rgba(82,196,26,.035); border-color: rgba(82,196,26,.16) }
-.connection-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px }
-.connection-test-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px; background: rgba(0,0,0,.018); border: 1px dashed rgba(5,5,5,.12); border-radius: 12px }
-.connection-test-copy { min-width: 0 }
+.docker-settings-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px }
+.docker-settings-panel :deep(.ant-card:nth-child(3)) { grid-column: 1 / -1 }
 .config-form { display: flex; flex-direction: column; gap: 16px; padding: 8px 0 }
 .config-hint { padding: 10px 12px; color: rgba(0,0,0,.55); font-size: 13px; background: rgba(22,119,255,.03); border: 1px solid rgba(22,119,255,.1); border-radius: 8px }
 .config-hint-title { margin-bottom: 6px; color: rgba(0,0,0,.75); font-weight: 500 }
@@ -1506,6 +1544,7 @@ onBeforeUnmount(() => stopRefreshTimer())
 .visual-service-header { display: flex; align-items: center; justify-content: space-between }
 .visual-service-index { color: rgba(0,0,0,.65); font-size: 13px; font-weight: 600 }
 .visual-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+.mirror-item { display: flex; align-items: center; gap: 8px }
 
 @media (max-width: 768px) {
   .docker-heading { flex-direction: column; align-items: flex-start; gap: 8px }
@@ -1513,10 +1552,8 @@ onBeforeUnmount(() => stopRefreshTimer())
   .stats-grid, .stats-grid-extended { grid-template-columns: repeat(2,1fr) }
   .docker-toolbar { flex-direction: column; align-items: stretch }
   .search-input { max-width: none }
-  .connection-hero { align-items: flex-start; flex-direction: column }
-  .connection-mode-badge { align-self: flex-start }
-  .connection-port-grid { grid-template-columns: 1fr }
-  .connection-switch-row, .connection-test-row { align-items: flex-start; flex-direction: column }
+  .docker-settings-panel { grid-template-columns: 1fr }
+  .docker-settings-panel :deep(.ant-card:nth-child(3)) { grid-column: auto }
   .preset-grid { grid-template-columns: 1fr }
   .visual-row-2 { grid-template-columns: 1fr }
 }
